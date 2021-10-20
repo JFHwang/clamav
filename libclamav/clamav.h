@@ -328,6 +328,19 @@ enum bytecode_mode {
     CL_BYTECODE_MODE_OFF          /* for query only, not settable */
 };
 
+enum clcb_enum {
+  NONE,
+  // clamscan
+  PRE, 
+  META, 
+  POST,
+  CLAMSCAN_VIRUS_FOUND_CB,
+  // clamd
+  SVC_CHECKPOINT,
+  CLAMD_VIRUS_FOUND_CB,
+  HASH_CALLBACK
+};
+
 struct cli_section_hash {
     unsigned char md5[16];
     size_t len;

@@ -406,7 +406,7 @@ endif()
 
 # Support the latest c++ standard available.
 include(ExtractValidFlags)
-foreach(_cxx1x_flag -std=c++14 -std=c++11)
+foreach(_cxx1x_flag -std=c++17 -std=c++14 -std=c++11)
     extract_valid_cxx_flags(_cxx1x_flag_supported ${_cxx1x_flag})
     if(_cxx1x_flag_supported)
         set(CXX1XCXXFLAGS ${_cxx1x_flag})

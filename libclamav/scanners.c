@@ -114,6 +114,7 @@
 #include "msdoc.h"
 #include "execs.h"
 #include "egg.h"
+#include "rlbox_scanner.h"
 
 // libclamunrar_iface
 #include "unrar_iface.h"
@@ -2636,6 +2637,7 @@ static cl_error_t cli_scanpdf(cli_ctx *ctx, off_t offset)
         return CL_ETMPDIR;
     }
 
+    //ret = invoke_sandbox_function_cli_pdf(dir, ctx, offset);
     ret = cli_pdf(dir, ctx, offset);
 
     if (!ctx->engine->keeptmp)
@@ -3115,7 +3117,6 @@ static cl_error_t scanraw(cli_ctx *ctx, cli_file_t type, uint8_t typercg, cli_fi
         cli_check_blockmax(ctx, CL_EMAXREC);
         return CL_EMAXREC;
     }
-
     if ((typercg) &&
         // We should also omit bzips, but DMG's may be detected in bzips. (type != CL_TYPE_BZ) &&        /* Omit BZ files because they can contain portions of original files like zip file entries that cause invalid extractions and lots of warnings. Decompress first, then scan! */
         (type != CL_TYPE_GZ) &&        /* Omit GZ files because they can contain portions of original files like zip file entries that cause invalid extractions and lots of warnings. Decompress first, then scan! */
@@ -3134,7 +3135,6 @@ static cl_error_t scanraw(cli_ctx *ctx, cli_file_t type, uint8_t typercg, cli_fi
     perf_start(ctx, PERFT_RAW);
     ret = cli_scan_fmap(ctx, type == CL_TYPE_TEXT_ASCII ? CL_TYPE_ANY : type, 0, &ftoffset, acmode, NULL, refhash);
     perf_stop(ctx, PERFT_RAW);
-
     // TODO I think this causes embedded file extraction to stop when a
     // signature has matched in cli_scan_fmap, which wouldn't be what
     // we want if allmatch is specified.
@@ -3643,7 +3643,6 @@ cl_error_t cli_magic_scan(cli_ctx *ctx, cli_file_t type)
         cli_dbgmsg("cli_magic_scan: returning %d %s (no post, no cache)\n", ret, __AT__);
         goto early_ret;
     }
-
     if (ctx->engine->keeptmp) {
         char *fmap_basename = NULL;
         /*
@@ -3857,7 +3856,6 @@ cl_error_t cli_magic_scan(cli_ctx *ctx, cli_file_t type)
         ctx->hook_lsig_matches = old_hook_lsig_matches;
         goto done;
     }
-
     ret = dispatch_prescan_callback(ctx->engine->cb_pre_scan, ctx, filetype, old_hook_lsig_matches, parent_property, hash, hashed_size, &run_cleanup);
     if (run_cleanup) {
         if (ret == CL_VIRUS) {
@@ -4284,7 +4282,6 @@ cl_error_t cli_magic_scan(cli_ctx *ctx, cli_file_t type)
         ctx->hook_lsig_matches = old_hook_lsig_matches;
         goto done;
     }
-
     /* Disable type recognition for the raw scan for zip files larger than maxziptypercg */
     if (type == CL_TYPE_ZIP && SCAN_PARSE_ARCHIVE && (DCONF_ARCH & ARCH_CONF_ZIP)) {
         /* CL_ENGINE_MAX_ZIPTYPERCG */
@@ -4407,7 +4404,6 @@ cl_error_t cli_magic_scan(cli_ctx *ctx, cli_file_t type)
         default:
             break;
     }
-
     ctx->recursion--;
     cli_bitset_free(ctx->hook_lsig_matches);
     ctx->hook_lsig_matches = old_hook_lsig_matches;
@@ -4436,7 +4432,6 @@ cl_error_t cli_magic_scan(cli_ctx *ctx, cli_file_t type)
     }
 
 done:
-
 #if HAVE_JSON
     ctx->wrkproperty = (struct json_object *)(parent_property);
 #endif
@@ -4488,7 +4483,6 @@ done:
     }
 
 early_ret:
-
     if ((ctx->engine->keeptmp) && (NULL != old_temp_path)) {
         /* Use rmdir to remove empty tmp subdirectories. If rmdir fails, it wasn't empty. */
         (void)rmdir(ctx->sub_tmpdir);
@@ -4502,7 +4496,6 @@ early_ret:
         ctx->wrkproperty = (struct json_object *)(parent_property);
     }
 #endif
-
     return ret;
 }
 
@@ -4760,6 +4753,7 @@ static cl_error_t scan_common(cl_fmap_t *map, const char *filepath, const char *
     memset(&ctx, '\0', sizeof(cli_ctx));
     ctx.engine  = engine;
     ctx.virname = virname;
+
     ctx.scanned = scanned;
     ctx.options = malloc(sizeof(struct cl_scan_options));
     memcpy(ctx.options, scanoptions, sizeof(struct cl_scan_options));
@@ -4877,7 +4871,7 @@ static cl_error_t scan_common(cl_fmap_t *map, const char *filepath, const char *
     cli_logg_setup(&ctx);
 
     rc = cli_magic_scan(&ctx, CL_TYPE_ANY);
-
+    
     if (rc == CL_CLEAN && ctx.found_possibly_unwanted) {
         cli_virus_found_cb(&ctx);
     }
@@ -5017,6 +5011,7 @@ done:
     return rc;
 }
 
+
 cl_error_t cl_scandesc_callback(int desc, const char *filename, const char **virname, unsigned long int *scanned, const struct cl_engine *engine, struct cl_scan_options *scanoptions, void *context)
 {
     cl_error_t status = CL_SUCCESS;
@@ -5044,17 +5039,14 @@ cl_error_t cl_scandesc_callback(int desc, const char *filename, const char **vir
         }
         goto done;
     }
-
     if (NULL != filename) {
         (void)cli_basename(filename, strlen(filename), &filename_base);
     }
-
     if (NULL == (map = fmap(desc, 0, sb.st_size, filename_base))) {
         cli_errmsg("CRITICAL: fmap() failed\n");
         status = CL_EMEM;
         goto done;
     }
-
     status = scan_common(map, filename, virname, scanned, engine, scanoptions, context);
 
 done:
@@ -5148,7 +5140,7 @@ cl_error_t cl_scanfile_callback(const char *filename, const char **virname, unsi
 
     if (fname != filename)
         free((char *)fname);
-
+//    ret = invoke_cl_scandesc_callback(fd, filename, virname, scanned, engine, scanoptions, context);
     ret = cl_scandesc_callback(fd, filename, virname, scanned, engine, scanoptions, context);
     close(fd);
 

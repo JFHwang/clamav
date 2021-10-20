@@ -28,19 +28,25 @@ target_sources( clamd
         shared.h
         tcpserver.c
         tcpserver.h
+        rlbox_clamd_callbacks.h
+        rlbox_clamd_callbacks.cpp
         thrmgr.c
         thrmgr.h )
 if(WIN32)
     target_sources( clamd PRIVATE ${CMAKE_SOURCE_DIR}/win32/res/clamd.rc )
 endif()
-target_include_directories( clamd
-    PRIVATE ${CMAKE_BINARY_DIR} # For clamav-config.h
-)
-set_target_properties( clamd PROPERTIES COMPILE_FLAGS "${WARNCFLAGS}" )
+
+#set_target_properties( clamd PROPERTIES COMPILE_FLAGS "${WARNCFLAGS}" "${WARNCXXFLAGS} ${CXX1XCXXFLAGS}")
+set_target_properties( clamd PROPERTIES COMPILE_FLAGS "${WARNCXXFLAGS} ${CXX1XCXXFLAGS}")
 target_link_libraries( clamd
     PRIVATE
         ClamAV::libclamav
         ClamAV::common )
+target_include_directories( clamd
+    PRIVATE ${CMAKE_BINARY_DIR} # For clamav-config.h
+    /home/john/programs/clamav/libclamav/c++
+    /home/john/programs/rlbox/rlbox_sandboxing_api/code/include 
+)
 if(WIN32)
     install(TARGETS clamd DESTINATION .)
 else()

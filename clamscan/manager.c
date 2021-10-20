@@ -50,7 +50,6 @@
 #include <target.h>
 
 // libclamav
-#include "clamav.h"
 #include "others.h"
 #include "matcher-ac.h"
 #include "matcher-pcre.h"
@@ -65,6 +64,8 @@
 
 #include "manager.h"
 #include "global.h"
+#include "rlbox_scanner.h"
+#include "rlbox_clamscan_callbacks.h"
 
 #ifdef C_LINUX
 dev_t procdev;
@@ -119,6 +120,7 @@ static int checkaccess(const char *path, const char *username, int mode)
 }
 #endif
 
+/*
 struct metachain {
     char **chains;
     size_t lastadd;
@@ -131,8 +133,10 @@ struct clamscan_cb_data {
     struct metachain *chain;
     const char *filename;
 };
+*/
 
-static cl_error_t pre(int fd, const char *type, void *context)
+//static cl_error_t pre(int fd, const char *type, void *context)
+cl_error_t pre(int fd, const char *type, void *context)
 {
     struct metachain *c;
     struct clamscan_cb_data *d;
@@ -176,7 +180,8 @@ static int print_chain(struct metachain *c, char *str, size_t len)
     return i == c->nchains - 1 ? 0 : 1;
 }
 
-static cl_error_t post(int fd, int result, const char *virname, void *context)
+//static cl_error_t post(int fd, int result, const char *virname, void *context)
+cl_error_t post(int fd, int result, const char *virname, void *context)
 {
     struct clamscan_cb_data *d = context;
     struct metachain *c        = NULL;
@@ -204,7 +209,9 @@ static cl_error_t post(int fd, int result, const char *virname, void *context)
     return CL_CLEAN;
 }
 
-static cl_error_t meta(const char *container_type, unsigned long fsize_container, const char *filename,
+//static cl_error_t meta(const char *container_type, unsigned long fsize_container, const char *filename,
+//                       unsigned long fsize_real, int is_encrypted, unsigned int filepos_container, void *context)
+cl_error_t meta(const char *container_type, unsigned long fsize_container, const char *filename,
                        unsigned long fsize_real, int is_encrypted, unsigned int filepos_container, void *context)
 {
     char prev[128];
@@ -270,7 +277,8 @@ static cl_error_t meta(const char *container_type, unsigned long fsize_container
     return CL_CLEAN;
 }
 
-static void clamscan_virus_found_cb(int fd, const char *virname, void *context)
+//static void clamscan_virus_found_cb(int fd, const char *virname, void *context)
+void clamscan_virus_found_cb(int fd, const char *virname, void *context)
 {
     struct clamscan_cb_data *data = (struct clamscan_cb_data *)context;
     const char *filename;
@@ -404,7 +412,9 @@ static void scanfile(const char *filename, struct cl_engine *engine, const struc
 
     data.chain    = &chain;
     data.filename = filename;
-    if ((ret = cl_scandesc_callback(fd, filename, &virname, &info.blocks, engine, options, &data)) == CL_VIRUS) {
+    ret = invoke_cl_scandesc_callback(fd, filename, &virname, &info.blocks, engine, options, &data);
+    if(ret == CL_VIRUS) {
+    //if ((ret = cl_scandesc_callback(fd, filename, &virname, &info.blocks, engine, options, &data)) == CL_VIRUS) {
         if (optget(opts, "archive-verbose")->enabled) {
             if (chain.nchains > 1) {
                 char str[128];
@@ -435,6 +445,7 @@ static void scanfile(const char *filename, struct cl_engine *engine, const struc
     for (i = 0; i < chain.nchains; i++)
         free(chain.chains[i]);
 
+    free(virname); // Added for rlbox
     free(chain.chains);
     close(fd);
 
@@ -571,7 +582,7 @@ static int scanstdin(const struct cl_engine *engine, struct cl_scan_options *opt
     FILE *fs;
     struct clamscan_cb_data data;
 
-    tmpdir = cl_engine_get_str(engine, CL_ENGINE_TMPDIR, NULL);
+    tmpdir = invoke_cl_engine_get_str(engine, CL_ENGINE_TMPDIR, NULL);
     if (NULL == tmpdir) {
         tmpdir = cli_gettmpdir();
     }
@@ -611,7 +622,7 @@ static int scanstdin(const struct cl_engine *engine, struct cl_scan_options *opt
 
     data.filename = "stdin";
     data.chain    = NULL;
-    if ((ret = cl_scanfile_callback(file, &virname, &info.blocks, engine, options, &data)) == CL_VIRUS) {
+    if ((ret = invoke_cl_scanfile_callback(file, &virname, &info.blocks, engine, options, &data)) == CL_VIRUS) {
         info.ifiles++;
 
         if (bell)
@@ -627,6 +638,7 @@ static int scanstdin(const struct cl_engine *engine, struct cl_scan_options *opt
     }
 
     unlink(file);
+    free(virname); // Added for rlbox
     free(file);
     return ret;
 }
@@ -687,15 +699,17 @@ int scanmanager(const struct optstruct *opts)
         return 2;
     }
 
-    if (!(engine = cl_engine_new())) {
+    create_sandbox();
+    if (!(engine = invoke_cl_engine_new())) {
         logg("!Can't initialize antivirus engine\n");
         return 2;
     }
 
-    cl_engine_set_clcb_virus_found(engine, clamscan_virus_found_cb);
+    invoke_cl_engine_set_clcb_virus_found(engine, getfptr_t_clamscan_virus_found_cb());
+    //cl_engine_set_clcb_virus_found(engine, clamscan_virus_found_cb);
 
     if (optget(opts, "disable-cache")->enabled)
-        cl_engine_set_num(engine, CL_ENGINE_DISABLE_CACHE, 1);
+        invoke_cl_engine_set_num(engine, CL_ENGINE_DISABLE_CACHE, 1);
 
     if (optget(opts, "detect-pua")->enabled) {
         dboptions |= CL_DB_PUA;
@@ -706,7 +720,7 @@ int scanmanager(const struct optstruct *opts)
                 if (!(pua_cats = realloc(pua_cats, i + strlen(opt->strarg) + 3))) {
                     logg("!Can't allocate memory for pua_cats\n");
 
-                    cl_engine_free(engine);
+                    invoke_cl_engine_free(engine);
                     return 2;
                 }
 
@@ -724,7 +738,7 @@ int scanmanager(const struct optstruct *opts)
             if (pua_cats) {
                 logg("!--exclude-pua and --include-pua cannot be used at the same time\n");
 
-                cl_engine_free(engine);
+                invoke_cl_engine_free(engine);
                 free(pua_cats);
                 return 2;
             }
@@ -734,7 +748,7 @@ int scanmanager(const struct optstruct *opts)
             while (opt) {
                 if (!(pua_cats = realloc(pua_cats, i + strlen(opt->strarg) + 3))) {
                     logg("!Can't allocate memory for pua_cats\n");
-                    cl_engine_free(engine);
+                    invoke_cl_engine_free(engine);
                     return 2;
                 }
 
@@ -750,11 +764,11 @@ int scanmanager(const struct optstruct *opts)
         }
 
         if (pua_cats) {
-            if ((ret = cl_engine_set_str(engine, CL_ENGINE_PUA_CATEGORIES, pua_cats))) {
+            if ((ret = invoke_cl_engine_set_str(engine, CL_ENGINE_PUA_CATEGORIES, pua_cats))) {
                 logg("!cli_engine_set_str(CL_ENGINE_PUA_CATEGORIES) failed: %s\n", cl_strerror(ret));
 
                 free(pua_cats);
-                cl_engine_free(engine);
+                invoke_cl_engine_free(engine);
                 return 2;
             }
 
@@ -763,28 +777,28 @@ int scanmanager(const struct optstruct *opts)
     }
 
     if (optget(opts, "dev-ac-only")->enabled)
-        cl_engine_set_num(engine, CL_ENGINE_AC_ONLY, 1);
+        invoke_cl_engine_set_num(engine, CL_ENGINE_AC_ONLY, 1);
 
     if (optget(opts, "dev-ac-depth")->enabled)
-        cl_engine_set_num(engine, CL_ENGINE_AC_MAXDEPTH, optget(opts, "dev-ac-depth")->numarg);
+        invoke_cl_engine_set_num(engine, CL_ENGINE_AC_MAXDEPTH, optget(opts, "dev-ac-depth")->numarg);
 
     if (optget(opts, "leave-temps")->enabled)
-        cl_engine_set_num(engine, CL_ENGINE_KEEPTMP, 1);
+        invoke_cl_engine_set_num(engine, CL_ENGINE_KEEPTMP, 1);
 
     if (optget(opts, "force-to-disk")->enabled)
-        cl_engine_set_num(engine, CL_ENGINE_FORCETODISK, 1);
+        invoke_cl_engine_set_num(engine, CL_ENGINE_FORCETODISK, 1);
 
     if (optget(opts, "bytecode-unsigned")->enabled)
         dboptions |= CL_DB_BYTECODE_UNSIGNED;
 
     if ((opt = optget(opts, "bytecode-timeout"))->enabled)
-        cl_engine_set_num(engine, CL_ENGINE_BYTECODE_TIMEOUT, opt->numarg);
+        invoke_cl_engine_set_num(engine, CL_ENGINE_BYTECODE_TIMEOUT, opt->numarg);
 
     if (optget(opts, "nocerts")->enabled)
-        cl_engine_set_num(engine, CL_ENGINE_DISABLE_PE_CERTS, 1);
+        invoke_cl_engine_set_num(engine, CL_ENGINE_DISABLE_PE_CERTS, 1);
 
     if (optget(opts, "dumpcerts")->enabled)
-        cl_engine_set_num(engine, CL_ENGINE_PE_DUMPCERTS, 1);
+        invoke_cl_engine_set_num(engine, CL_ENGINE_PE_DUMPCERTS, 1);
 
     if ((opt = optget(opts, "bytecode-mode"))->enabled) {
         enum bytecode_mode mode;
@@ -798,7 +812,7 @@ int scanmanager(const struct optstruct *opts)
         else
             mode = CL_BYTECODE_MODE_AUTO;
 
-        cl_engine_set_num(engine, CL_ENGINE_BYTECODE_MODE, mode);
+        invoke_cl_engine_set_num(engine, CL_ENGINE_BYTECODE_MODE, mode);
     }
 
     if ((opt = optget(opts, "statistics"))->enabled) {
@@ -820,26 +834,26 @@ int scanmanager(const struct optstruct *opts)
     if (optget(opts, "gen-json")->enabled) {
         logg("!Can't generate json (gen-json). libjson-c dev library was missing or misconfigured when ClamAV was built.\n");
 
-        cl_engine_free(engine);
+        invoke_cl_engine_free(engine);
         return 2;
     }
 #endif
 
     if ((opt = optget(opts, "tempdir"))->enabled) {
-        if ((ret = cl_engine_set_str(engine, CL_ENGINE_TMPDIR, opt->strarg))) {
+        if ((ret = invoke_cl_engine_set_str(engine, CL_ENGINE_TMPDIR, opt->strarg))) {
             logg("!cli_engine_set_str(CL_ENGINE_TMPDIR) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "database"))->active) {
         while (opt) {
-            if ((ret = cl_load(opt->strarg, engine, &info.sigs, dboptions))) {
+            if ((ret = invoke_cl_load(opt->strarg, engine, &info.sigs, dboptions))) {
                 logg("!%s\n", cl_strerror(ret));
 
-                cl_engine_free(engine);
+                invoke_cl_engine_free(engine);
                 return 2;
             }
 
@@ -848,90 +862,93 @@ int scanmanager(const struct optstruct *opts)
     } else {
         char *dbdir = freshdbdir();
 
-        if ((ret = cl_load(dbdir, engine, &info.sigs, dboptions))) {
+        if ((ret = invoke_cl_load(dbdir, engine, &info.sigs, dboptions))) {
             logg("!%s\n", cl_strerror(ret));
 
             free(dbdir);
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
 
         free(dbdir);
     }
 
-    /* pcre engine limits - required for cl_engine_compile */
+    /* pcre engine limits - required for invoke_cl_engine_compile */
     if ((opt = optget(opts, "pcre-match-limit"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_PCRE_MATCH_LIMIT, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_PCRE_MATCH_LIMIT, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_PCRE_MATCH_LIMIT) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "pcre-recmatch-limit"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_PCRE_RECMATCH_LIMIT, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_PCRE_RECMATCH_LIMIT, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_PCRE_RECMATCH_LIMIT) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
-    if ((ret = cl_engine_compile(engine)) != 0) {
+    if ((ret = invoke_cl_engine_compile(engine)) != 0) {
         logg("!Database initialization error: %s\n", cl_strerror(ret));
 
-        cl_engine_free(engine);
+        invoke_cl_engine_free(engine);
         return 2;
     }
 
     if (optget(opts, "archive-verbose")->enabled) {
-        cl_engine_set_clcb_meta(engine, meta);
-        cl_engine_set_clcb_pre_cache(engine, pre);
-        cl_engine_set_clcb_post_scan(engine, post);
+    //    cl_engine_set_clcb_meta(engine, meta);
+    //    cl_engine_set_clcb_pre_cache(engine, pre);
+    //    cl_engine_set_clcb_post_scan(engine, post);
+        invoke_cl_engine_set_clcb_meta(engine, getfptr_t_meta());
+        invoke_cl_engine_set_clcb_pre_cache(engine, getfptr_t_pre());
+        invoke_cl_engine_set_clcb_post_scan(engine, getfptr_t_post());
     }
 
     /* set limits */
 
     /* TODO: Remove deprecated option in a future feature release */
     if ((opt = optget(opts, "timelimit"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_SCANTIME, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_SCANTIME, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_SCANTIME) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
     if ((opt = optget(opts, "max-scantime"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_SCANTIME, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_SCANTIME, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_SCANTIME) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "max-scansize"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_SCANSIZE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_SCANSIZE, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_SCANSIZE) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "max-filesize"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_FILESIZE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_FILESIZE, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_FILESIZE) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
 #ifndef _WIN32
     if (getrlimit(RLIMIT_FSIZE, &rlim) == 0) {
-        if (rlim.rlim_cur < (rlim_t)cl_engine_get_num(engine, CL_ENGINE_MAX_FILESIZE, NULL))
+        if (rlim.rlim_cur < (rlim_t)invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_FILESIZE, NULL))
             logg("^System limit for file size is lower than engine->maxfilesize\n");
-        if (rlim.rlim_cur < (rlim_t)cl_engine_get_num(engine, CL_ENGINE_MAX_SCANSIZE, NULL))
+        if (rlim.rlim_cur < (rlim_t)invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_SCANSIZE, NULL))
             logg("^System limit for file size is lower than engine->maxscansize\n");
     } else {
         logg("^Cannot obtain resource limits for file size\n");
@@ -939,19 +956,19 @@ int scanmanager(const struct optstruct *opts)
 #endif
 
     if ((opt = optget(opts, "max-files"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_FILES, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_FILES, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_FILES) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "max-recursion"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_RECURSION, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_RECURSION, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_RECURSION) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
@@ -959,81 +976,81 @@ int scanmanager(const struct optstruct *opts)
     /* Engine max sizes */
 
     if ((opt = optget(opts, "max-embeddedpe"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_EMBEDDEDPE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_EMBEDDEDPE, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_EMBEDDEDPE) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "max-htmlnormalize"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_HTMLNORMALIZE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_HTMLNORMALIZE, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_HTMLNORMALIZE) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "max-htmlnotags"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_HTMLNOTAGS, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_HTMLNOTAGS, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_HTMLNOTAGS) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "max-scriptnormalize"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_SCRIPTNORMALIZE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_SCRIPTNORMALIZE, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_SCRIPTNORMALIZE) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "max-ziptypercg"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_ZIPTYPERCG, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_ZIPTYPERCG, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_ZIPTYPERCG) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "max-partitions"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_PARTITIONS, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_PARTITIONS, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_PARTITIONS) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "max-iconspe"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_ICONSPE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_ICONSPE, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_ICONSPE) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "max-rechwp3"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_RECHWP3, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_RECHWP3, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_RECHWP3) failed: %s\n", cl_strerror(ret));
 
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
 
     if ((opt = optget(opts, "pcre-max-filesize"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_PCRE_MAX_FILESIZE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_PCRE_MAX_FILESIZE, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_PCRE_MAX_FILESIZE) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
             return 2;
         }
     }
@@ -1163,18 +1180,18 @@ int scanmanager(const struct optstruct *opts)
         }
 
         if ((opt = optget(opts, "structured-ssn-count"))->active) {
-            if ((ret = cl_engine_set_num(engine, CL_ENGINE_MIN_SSN_COUNT, opt->numarg))) {
+            if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MIN_SSN_COUNT, opt->numarg))) {
                 logg("!cli_engine_set_num(CL_ENGINE_MIN_SSN_COUNT) failed: %s\n", cl_strerror(ret));
 
-                cl_engine_free(engine);
+                invoke_cl_engine_free(engine);
                 return 2;
             }
         }
 
         if ((opt = optget(opts, "structured-cc-count"))->active) {
-            if ((ret = cl_engine_set_num(engine, CL_ENGINE_MIN_CC_COUNT, opt->numarg))) {
+            if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MIN_CC_COUNT, opt->numarg))) {
                 logg("!cli_engine_set_num(CL_ENGINE_MIN_CC_COUNT) failed: %s\n", cl_strerror(ret));
-                cl_engine_free(engine);
+                invoke_cl_engine_free(engine);
                 return 2;
             }
         }
@@ -1276,7 +1293,8 @@ int scanmanager(const struct optstruct *opts)
     }
 
     /* free the engine */
-    cl_engine_free(engine);
+    invoke_cl_engine_free(engine);
+    destroy_sandbox();
 
     /* overwrite return code - infection takes priority */
     if (info.ifiles)

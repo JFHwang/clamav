@@ -649,11 +649,12 @@ class Executor(object):
 
         self._process_pid = self._process.pid
         self.result, self.error = self._process.communicate(interact)
+        
         if self.result != None:
             self.result = self.result.decode("utf-8", "ignore")
             self.error = self.error.decode("utf-8", "ignore")
         self.code = self._process.returncode
-
+        print(self.error)
         if self.terminated:
             self.error = 'Execution timeout exceeded for "%s" command.' % (cmd,)
             self.code = TIMEOUT_EXIT_CODE

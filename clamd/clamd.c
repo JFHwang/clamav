@@ -74,6 +74,8 @@
 #include "clamd_others.h"
 #include "shared.h"
 #include "scanner.h"
+#include "rlbox_scanner.h"
+#include "rlbox_clamd_callbacks.h"
 
 #ifdef _WIN32
 #include "service.h"
@@ -122,7 +124,7 @@ static struct cl_engine *gengine = NULL;
 static void free_engine(void)
 {
     if (gengine) {
-        cl_engine_free(gengine);
+        invoke_cl_engine_free(gengine);
         gengine = NULL;
     }
 }
@@ -459,14 +461,15 @@ int main(int argc, char **argv)
             break;
         }
 
-        if (!(engine = cl_engine_new())) {
+        create_sandbox();
+        if (!(engine = invoke_cl_engine_new())) {
             logg("!Can't initialize antivirus engine\n");
             ret = 1;
             break;
         }
 
         if (optget(opts, "disable-cache")->enabled)
-            cl_engine_set_num(engine, CL_ENGINE_DISABLE_CACHE, 1);
+            invoke_cl_engine_set_num(engine, CL_ENGINE_DISABLE_CACHE, 1);
 
         /* load the database(s) */
         dbdir = optget(opts, "DatabaseDirectory")->strarg;
@@ -483,7 +486,8 @@ int main(int argc, char **argv)
                 while (opt) {
                     if (!(pua_cats = realloc(pua_cats, i + strlen(opt->strarg) + 3))) {
                         logg("!Can't allocate memory for pua_cats\n");
-                        cl_engine_free(engine);
+                        invoke_cl_engine_free(engine);
+                        destroy_sandbox();
                         ret = 1;
                         break;
                     }
@@ -539,7 +543,7 @@ int main(int argc, char **argv)
             }
 
             if (pua_cats) {
-                if ((ret = cl_engine_set_str(engine, CL_ENGINE_PUA_CATEGORIES, pua_cats))) {
+                if ((ret = invoke_cl_engine_set_str(engine, CL_ENGINE_PUA_CATEGORIES, pua_cats))) {
                     logg("!cli_engine_set_str(CL_ENGINE_PUA_CATEGORIES) failed: %s\n", cl_strerror(ret));
                     free(pua_cats);
                     ret = 1;
@@ -558,22 +562,24 @@ int main(int argc, char **argv)
 
         /* set the temporary dir */
         if ((opt = optget(opts, "TemporaryDirectory"))->enabled) {
-            if ((ret = cl_engine_set_str(engine, CL_ENGINE_TMPDIR, opt->strarg))) {
+            if ((ret = invoke_cl_engine_set_str(engine, CL_ENGINE_TMPDIR, opt->strarg))) {
                 logg("!cli_engine_set_str(CL_ENGINE_TMPDIR) failed: %s\n", cl_strerror(ret));
                 ret = 1;
                 break;
             }
         }
 
-        cl_engine_set_clcb_hash(engine, hash_callback);
+//        cl_engine_set_clcb_hash(engine, hash_callback);
+//        cl_engine_set_clcb_virus_found(engine, clamd_virus_found_cb);
 
-        cl_engine_set_clcb_virus_found(engine, clamd_virus_found_cb);
+        invoke_cl_engine_set_clcb_hash(engine, getfptr_t_hash_callback());
+        invoke_cl_engine_set_clcb_virus_found(engine, getfptr_t_clamd_virus_found_cb());
 
         if (optget(opts, "LeaveTemporaryFiles")->enabled)
-            cl_engine_set_num(engine, CL_ENGINE_KEEPTMP, 1);
+            invoke_cl_engine_set_num(engine, CL_ENGINE_KEEPTMP, 1);
 
         if (optget(opts, "ForceToDisk")->enabled)
-            cl_engine_set_num(engine, CL_ENGINE_FORCETODISK, 1);
+            invoke_cl_engine_set_num(engine, CL_ENGINE_FORCETODISK, 1);
 
         if (optget(opts, "PhishingSignatures")->enabled)
             dboptions |= CL_DB_PHISHING;
@@ -598,7 +604,7 @@ int main(int argc, char **argv)
                     break;
                 }
 
-                if ((ret = cl_engine_set_num(engine, CL_ENGINE_BYTECODE_SECURITY, s))) {
+                if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_BYTECODE_SECURITY, s))) {
                     logg("^Invalid bytecode security setting %s: %s\n", opt->strarg, cl_strerror(ret));
                     ret = 1;
                     break;
@@ -620,11 +626,11 @@ int main(int argc, char **argv)
                     mode = CL_BYTECODE_MODE_TEST;
                 else
                     mode = CL_BYTECODE_MODE_AUTO;
-                cl_engine_set_num(engine, CL_ENGINE_BYTECODE_MODE, mode);
+                invoke_cl_engine_set_num(engine, CL_ENGINE_BYTECODE_MODE, mode);
             }
 
             if ((opt = optget(opts, "BytecodeTimeout"))->enabled) {
-                cl_engine_set_num(engine, CL_ENGINE_BYTECODE_TIMEOUT, opt->numarg);
+                invoke_cl_engine_set_num(engine, CL_ENGINE_BYTECODE_TIMEOUT, opt->numarg);
             }
         } else {
             logg("#Bytecode support disabled.\n");
@@ -637,22 +643,23 @@ int main(int argc, char **argv)
 
         if (optget(opts, "DevACOnly")->enabled) {
             logg("#Only using the A-C matcher.\n");
-            cl_engine_set_num(engine, CL_ENGINE_AC_ONLY, 1);
+            invoke_cl_engine_set_num(engine, CL_ENGINE_AC_ONLY, 1);
         }
 
         if ((opt = optget(opts, "DevACDepth"))->enabled) {
-            cl_engine_set_num(engine, CL_ENGINE_AC_MAXDEPTH, opt->numarg);
+            invoke_cl_engine_set_num(engine, CL_ENGINE_AC_MAXDEPTH, opt->numarg);
             logg("#Max A-C depth set to %u\n", (unsigned int)opt->numarg);
         }
 
 #ifdef _WIN32
         if (optget(opts, "daemon")->enabled) {
-            cl_engine_set_clcb_sigload(engine, svc_checkpoint, NULL);
+            //cl_engine_set_clcb_sigload(engine, svc_checkpoint, NULL);
+            invoke_cl_engine_set_clcb_sigload(engine, SVC_CHECKPOINT, NULL);
             svc_register("clamd");
         }
 #endif
 
-        if ((ret = cl_load(dbdir, engine, &sigs, dboptions))) {
+        if ((ret = invoke_cl_load(dbdir, engine, &sigs, dboptions))) {
             logg("!%s\n", cl_strerror(ret));
             ret = 1;
             break;
@@ -665,28 +672,30 @@ int main(int argc, char **argv)
         }
 
         if (optget(opts, "DisableCertCheck")->enabled)
-            cl_engine_set_num(engine, CL_ENGINE_DISABLE_PE_CERTS, 1);
+            invoke_cl_engine_set_num(engine, CL_ENGINE_DISABLE_PE_CERTS, 1);
 
         logg("#Loaded %u signatures.\n", sigs);
 
         /* pcre engine limits - required for cl_engine_compile */
         if ((opt = optget(opts, "PCREMatchLimit"))->active) {
-            if ((ret = cl_engine_set_num(engine, CL_ENGINE_PCRE_MATCH_LIMIT, opt->numarg))) {
+            if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_PCRE_MATCH_LIMIT, opt->numarg))) {
                 logg("!cli_engine_set_num(PCREMatchLimit) failed: %s\n", cl_strerror(ret));
-                cl_engine_free(engine);
+                invoke_cl_engine_free(engine);
+                destroy_sandbox();
                 return 1;
             }
         }
 
         if ((opt = optget(opts, "PCRERecMatchLimit"))->active) {
-            if ((ret = cl_engine_set_num(engine, CL_ENGINE_PCRE_RECMATCH_LIMIT, opt->numarg))) {
+            if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_PCRE_RECMATCH_LIMIT, opt->numarg))) {
                 logg("!cli_engine_set_num(PCRERecMatchLimit) failed: %s\n", cl_strerror(ret));
-                cl_engine_free(engine);
+                invoke_cl_engine_free(engine);
+                destroy_sandbox();
                 return 1;
             }
         }
 
-        if ((ret = cl_engine_compile(engine)) != 0) {
+        if ((ret = invoke_cl_engine_compile(engine)) != 0) {
             logg("!Database initialization error: %s\n", cl_strerror(ret));
             ret = 1;
             break;
@@ -822,7 +831,7 @@ int main(int argc, char **argv)
 
 #elif defined(_WIN32)
         if (optget(opts, "service-mode")->enabled) {
-            cl_engine_set_clcb_sigload(engine, NULL, NULL);
+            invoke_cl_engine_set_clcb_sigload(engine, NULL, NULL);
             svc_ready();
         }
 #endif
@@ -859,6 +868,5 @@ int main(int argc, char **argv)
 
     logg_close();
     optfree(opts);
-
     return ret;
 }

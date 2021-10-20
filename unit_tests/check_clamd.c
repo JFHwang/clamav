@@ -90,18 +90,23 @@ static void conn_setup_mayfail(int may)
     memset((void *)&nixsock, 0, sizeof(nixsock));
     nixsock.sun_family = AF_UNIX;
     strncpy(nixsock.sun_path, SOCKET, sizeof(nixsock.sun_path));
-
+fprintf(stderr, "Getting socket\n");
     sockd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockd == -1 && (may && (errno == EMFILE || errno == ENFILE)))
         return;
     ck_assert_msg(sockd != -1, "Unable to create socket: %s\n", strerror(errno));
-
+fprintf(stderr, "Connecting\n");
     rc = connect(sockd, (struct sockaddr *)&nixsock, (socklen_t)sizeof(nixsock));
+fprintf(stderr, "Connection complete\n");
     if (rc == -1 && (may && (errno == ECONNREFUSED))) {
+
+fprintf(stderr, "Connection failed. Closing socket\n");
         close(sockd);
         sockd = -1;
         return;
     }
+
+fprintf(stderr, "signalling\n");
     ck_assert_msg(rc != -1, "Unable to connect(): %s: %s\n", strerror(errno), SOCKET);
 
     signal(SIGPIPE, SIG_IGN);
@@ -309,6 +314,7 @@ START_TEST(test_basic_commands)
     struct basic_test *test = &basic_tests[_i];
     char nsend[BUFSIZ], nreply[BUFSIZ];
 
+    fprintf(stderr, "start test_basic_commands\n");
     if (test->skiproot && isroot)
         return;
     /* send nCOMMAND */
@@ -323,6 +329,7 @@ START_TEST(test_basic_commands)
     conn_setup();
     test_command(nsend, strlen(nsend) + 1, test->extra, test->reply, strlen(test->reply) + 1);
     conn_teardown();
+    fprintf(stderr, "endin test_basic_commands\n");
 }
 END_TEST
 
@@ -332,6 +339,7 @@ START_TEST(test_compat_commands)
     struct basic_test *test = &basic_tests[_i];
     char nsend[BUFSIZ], nreply[BUFSIZ];
 
+    fprintf(stderr, "start test_compat_commands\n");
     if (test->skiproot && isroot)
         return;
 
@@ -363,6 +371,7 @@ START_TEST(test_compat_commands)
         test_command(nsend, strlen(nsend), test->extra, nreply, strlen(nreply));
         conn_teardown();
     }
+    fprintf(stderr, "endin test_compat_commands\n");
 }
 END_TEST
 
@@ -372,6 +381,7 @@ END_TEST
 #define STATS_REPLY "POOLS: 1\n\nSTATE: VALID PRIMARY\n"
 START_TEST(test_stats)
 {
+    fprintf(stderr, "start test_stats\n");
     char *recvdata;
     size_t len = strlen("nSTATS\n");
     int rc;
@@ -392,6 +402,7 @@ START_TEST(test_stats)
     ck_assert_msg(rc == 0, "Wrong reply: %s\n", recvdata);
     free(recvdata);
     conn_teardown();
+    fprintf(stderr, "endin test_stats\n");
 }
 END_TEST
 
@@ -421,17 +432,19 @@ static size_t prepare_instream(char *buf, size_t off, size_t buflen)
 
 START_TEST(test_instream)
 {
+    fprintf(stderr, "start test_instream\n");
     void *recvdata;
     size_t len, expect_len;
     char buf[4096] = "nINSTREAM\n";
     size_t off     = strlen(buf);
     int rc;
-
+fprintf(stderr, "Prepping instream\n");
     off = prepare_instream(buf, off, sizeof(buf));
-
+fprintf(stderr, "Conn setup\n");
     conn_setup();
+fprintf(stderr, "sending\n");
     ck_assert_msg((size_t)send(sockd, buf, off, 0) == off, "send() failed: %s\n", strerror(errno));
-
+fprintf(stderr, "recving\n");
     recvdata = recvfull(sockd, &len);
 
     expect_len = strlen(EXPECT_INSTREAM);
@@ -440,9 +453,12 @@ START_TEST(test_instream)
 
     rc = memcmp(recvdata, EXPECT_INSTREAM, expect_len);
     ck_assert_msg(!rc, "Wrong reply for command INSTREAM:\nReceived: \n%s\nExpected: \n%s\n", recvdata, EXPECT_INSTREAM);
+    fprintf(stderr, "test_instream start free\n");
     free(recvdata);
+    fprintf(stderr, "test_instream end free\n");
 
     conn_teardown();
+    fprintf(stderr, "endin test_instream\n");
 }
 END_TEST
 
@@ -541,6 +557,7 @@ static struct cmds {
 
 START_TEST(test_fildes)
 {
+    fprintf(stderr, "start test_filedes\n");
     char nreply[BUFSIZ], nsend[BUFSIZ];
     int fd        = open(SCANFILE, O_RDONLY);
     int closefd   = 0;
@@ -582,11 +599,13 @@ START_TEST(test_fildes)
 	 *  0 - close fd after receiving reply */
         close(fd);
     }
+    fprintf(stderr, "endin test_filedes\n");
 }
 END_TEST
 
 START_TEST(test_fildes_many)
 {
+    fprintf(stderr, "start test_filedes_many\n");
     const char idsession[] = "zIDSESSION";
     const char fildes[]    = "zFILDES";
     const char end[]       = "zEND";
@@ -613,11 +632,13 @@ START_TEST(test_fildes_many)
     conn_setup();
     test_command(ping, sizeof(ping), NULL, "PONG", 5);
     conn_teardown();
+    fprintf(stderr, "endin test_filedes_many\n");
 }
 END_TEST
 
 START_TEST(test_fildes_unwanted)
 {
+    fprintf(stderr, "start test_filedes_unwanted\n");
     char *recvdata;
     size_t len;
     int dummyfd;
@@ -635,15 +656,20 @@ START_TEST(test_fildes_unwanted)
     ck_assert_msg(!strcmp(recvdata, "1: PROTOCOL ERROR: ancillary data sent without FILDES. ERROR"),
                   "Wrong reply: %s\n", recvdata);
 
+
+    fprintf(stderr, "start test_filedes_unwanted free\n");
     free(recvdata);
+    fprintf(stderr, "end test_filedes_unwanted free\n");
     close(dummyfd);
     conn_teardown();
+    fprintf(stderr, "endin test_filedes_unwanted\n");
 }
 END_TEST
 #endif
 
 START_TEST(test_idsession_stress)
 {
+    fprintf(stderr, "start test_idsession_stress\n");
     char buf[BUFSIZ];
     size_t i;
     char *data, *p;
@@ -668,11 +694,13 @@ START_TEST(test_idsession_stress)
 
         ck_assert_msg(!strcmp(p, VERSION_REPLY), "wrong VERSION reply: %s\n", data);
         ck_assert_msg(!strcmp(data, buf), "wrong IDSESSION id: %s\n", data);
-
+        fprintf(stderr, "test_idsession start free iter %d\n", i);
         free(data);
+        fprintf(stderr, "test_idsession end free iter %d\n", i);
     }
 
     conn_teardown();
+    fprintf(stderr, "endin test_idsession_stress\n");
 }
 END_TEST
 
@@ -687,6 +715,7 @@ END_TEST
  */
 START_TEST(test_connections)
 {
+    fprintf(stderr, "start test_connections\n");
     int rc;
     int i;
     struct rlimit rlim;
@@ -698,7 +727,7 @@ START_TEST(test_connections)
     num_fds = MIN(rlim.rlim_cur - 5, 250);
 
     sock = malloc(sizeof(int) * num_fds);
-
+fprintf(stderr, "numfds: %d\n", num_fds);
     ck_assert_msg(!!sock, "malloc failed\n");
 
     for (i = 0; i < num_fds; i++) {
@@ -717,7 +746,7 @@ START_TEST(test_connections)
         if (sockd > maxfd)
             maxfd = sockd;
     }
-
+fprintf(stderr, "Created %d connections\n", num_fds);
     rc = fork();
     ck_assert_msg(rc != -1, "fork() failed: %s\n", strerror(errno));
     if (rc == 0) {
@@ -742,14 +771,19 @@ START_TEST(test_connections)
                 }
             }
         }
-        free(sock);
+        fprintf(stderr, "start test_connections socket free\n");
+        //free(sock);
+        fprintf(stderr, "end test_connections socket free\n");
         exit(0);
     } else {
         /* Parent */
         for (i = 0; i < num_fds; i++) {
             close(sock[i]);
         }
+        fprintf(stderr, "parent start test_connections socket free\n");
+        fprintf(stderr, "sock value is %p\n", sock);
         free(sock);
+        fprintf(stderr, "parent end test_connections socket free\n");
         /* now see if clamd is able to do anything else */
         for (i = 0; i < 10; i++) {
             conn_setup();
@@ -759,6 +793,7 @@ START_TEST(test_connections)
         /* Ok we're done, kill the child process if it's still up, else it might hang the test framework */
         kill(rc, SIGKILL);
     }
+    fprintf(stderr, "endin test_connections\n");
 }
 END_TEST
 #endif
@@ -855,6 +890,7 @@ static void test_idsession_commands(int split, int instream)
 #define ID_CMD "zIDSESSION"
 START_TEST(test_idsession)
 {
+    fprintf(stderr, "start test_idsession\n");
     conn_setup();
     ck_assert_msg((size_t)send(sockd, ID_CMD, sizeof(ID_CMD), 0) == sizeof(ID_CMD),
                   "send() failed: %s\n", strerror(errno));
@@ -867,6 +903,7 @@ START_TEST(test_idsession)
     ck_assert_msg((size_t)send(sockd, ID_CMD, sizeof(ID_CMD), 0) == sizeof(ID_CMD),
                   "send() failed: %s\n", strerror(errno));
     test_idsession_commands(0, 1);
+    fprintf(stderr, "endin test_idsession\n");
 }
 END_TEST
 

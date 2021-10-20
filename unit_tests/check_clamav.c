@@ -166,6 +166,7 @@ END_TEST
 
 static int get_test_file(int i, char *file, unsigned fsize, unsigned long *size);
 static struct cl_engine *g_engine;
+static struct cl_engine *t_g_engine;
 
 /* int cl_scandesc(int desc, const char **virname, unsigned long int *scanned, const struct cl_engine *engine, const struct cl_limits *limits, struct cl_scan_options* options) */
 START_TEST(test_cl_scandesc)
@@ -506,6 +507,23 @@ static void engine_setup(void)
     ck_assert_msg(cl_load(hdb, g_engine, &sigs, CL_DB_STDOPT) == 0, "cl_load %s", hdb);
     ck_assert_msg(sigs == 1, "sigs");
     ck_assert_msg(cl_engine_compile(g_engine) == 0, "cl_engine_compile");
+}
+
+static void t_engine_setup(void)
+{
+    unsigned int sigs = 0;
+    const char *hdb   = OBJDIR PATHSEP "clamav.hdb";
+
+    init_testfiles();
+    if (!inited)
+        ck_assert_msg(cl_init(CL_INIT_DEFAULT) == 0, "cl_init");
+    inited   = 1;
+    t_g_engine = invoke_cl_engine_new();
+    int tmp = invoke_cl_engine_new();
+    ck_assert_msg(!!t_g_engine, "engine");
+    ck_assert_msg(invoke_cl_load(hdb, t_g_engine, &sigs, CL_DB_STDOPT) == 0, "cl_load %s", hdb);
+    ck_assert_msg(sigs == 1, "sigs");
+    ck_assert_msg(invoke_cl_engine_compile(t_g_engine) == 0, "cl_engine_compile");
 }
 
 static void engine_teardown(void)

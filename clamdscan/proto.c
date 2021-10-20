@@ -91,9 +91,16 @@ int dconnect()
             if (connect(sockd, (struct sockaddr *)&nixsock, sizeof(nixsock)) == 0)
                 return sockd;
             else {
+                char cwd[PATH_MAX];
+                if (getcwd(cwd, sizeof(cwd)) != NULL) {
+                    fprintf(stderr, "Current working dir: %s\n", cwd);
+                }
+                fprintf(stderr, "Connecting to %s\n", nixsock.sun_path);
+
                 logg("!Could not connect to clamd on LocalSocket %s: %s\n", opt->strarg, strerror(errno));
                 close(sockd);
             }
+            fprintf(stderr, "Connection success\n");
         }
     }
 #endif

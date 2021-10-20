@@ -17,14 +17,19 @@ target_sources( clamscan
         clamscan.c
         manager.c
         manager.h
+        rlbox_clamscan_callbacks.cpp
+        rlbox_clamscan_callbacks.h
         global.h )
 if(WIN32)
     target_sources( clamscan PRIVATE ${CMAKE_SOURCE_DIR}/win32/res/clamscan.rc )
 endif()
 target_include_directories( clamscan
     PRIVATE ${CMAKE_BINARY_DIR} # For clamav-config.h
+    /home/john/programs/clamav/libclamav/c++
+    /home/john/programs/rlbox/rlbox_sandboxing_api/code/include 
 )
-set_target_properties( clamscan PROPERTIES COMPILE_FLAGS "${WARNCFLAGS}" )
+#set_target_properties( clamscan PROPERTIES COMPILE_FLAGS "${WARNCFLAGS}" )
+set_target_properties( clamscan PROPERTIES COMPILE_FLAGS "${WARNCXXFLAGS} ${CXX1XCXXFLAGS}")
 target_link_libraries( clamscan
     PRIVATE
         ClamAV::libclamav

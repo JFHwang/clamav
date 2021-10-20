@@ -41,6 +41,7 @@
 #include "thrmgr.h"
 #include "clamd_others.h"
 #include "server.h"
+#include "rlbox_scanner.h"
 
 #ifdef HAVE_MALLINFO
 #include <malloc.h>
@@ -275,7 +276,7 @@ int thrmgr_printstats(int f, char term)
                     seen               = s;
                     seen[seen_cnt - 1] = task->engine;
 
-                    if (MPOOL_GETSTATS(task->engine, &used, &total) != -1) {
+                    if (invoke_mpool_getstats(task->engine, &used, &total) != -1) {
                         pool_used += used;
                         pool_total += total;
                         pool_cnt++;

@@ -152,7 +152,9 @@ int localserver(const struct optstruct *opts)
         return -1;
     }
 
+    fprintf(stderr, "Binding to socket: %s\n", server.sun_path);
     if (bind(sockfd, (struct sockaddr *)&server, sizeof(struct sockaddr_un)) == -1) {
+        fprintf(stderr, "Binding to socket failed\n");
         if (errno == EADDRINUSE) {
             if (connect(sockfd, (struct sockaddr *)&server, sizeof(struct sockaddr_un)) >= 0) {
                 logg("!LOCAL: Socket file %s is in use by another process.\n", server.sun_path);
@@ -185,6 +187,7 @@ int localserver(const struct optstruct *opts)
             return -1;
         }
     }
+    fprintf(stderr, "Binding to socket done\n");
 
     logg("#LOCAL: Unix socket file %s\n", server.sun_path);
 

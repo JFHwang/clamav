@@ -143,7 +143,8 @@ static void scanner_thread(void *arg)
         shutdown(conn->sd, 2);
         closesocket(conn->sd);
     }
-    cl_engine_free(conn->engine);
+    invoke_cl_engine_free(conn->engine);
+    //destroy_sandbox();
     free(conn);
     return;
 }
@@ -221,26 +222,26 @@ static void *reload_th(void *arg)
     }
 
     logg("Reading databases from %s\n", rldata->dbdir);
-
-    if (NULL == (engine = cl_engine_new())) {
+    //create_sandbox();
+    if (NULL == (engine = invoke_cl_engine_new())) {
         logg("!reload_th: Can't initialize antivirus engine\n");
         goto done;
     }
 
-    retval = cl_engine_settings_apply(engine, rldata->settings);
+    retval = invoke_cl_engine_settings_apply(engine, rldata->settings);
     if (CL_SUCCESS != retval) {
         logg("!reload_th: Failed to apply previous engine settings: %s\n", cl_strerror(retval));
         status = CL_EMEM;
         goto done;
     }
 
-    retval = cl_load(rldata->dbdir, engine, &sigs, rldata->dboptions);
+    retval = invoke_cl_load(rldata->dbdir, engine, &sigs, rldata->dboptions);
     if (CL_SUCCESS != retval) {
         logg("!reload_th: Database load failed: %s\n", cl_strerror(retval));
         goto done;
     }
 
-    retval = cl_engine_compile(engine);
+    retval = invoke_cl_engine_compile(engine);
     if (CL_SUCCESS != retval) {
         logg("!reload_th: Database initialization error: can't compile engine: %s\n", cl_strerror(retval));
         goto done;
@@ -253,17 +254,18 @@ done:
 
     if (NULL != rldata) {
         if (NULL != rldata->settings) {
-            cl_engine_settings_free(rldata->settings);
+            invoke_cl_engine_settings_free(rldata->settings);
         }
         if (NULL != rldata->dbdir) {
             free(rldata->dbdir);
         }
         free(rldata);
-    }
+    }   
 
     if (CL_SUCCESS != status) {
         if (NULL != engine) {
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             engine = NULL;
         }
     }
@@ -318,7 +320,7 @@ static cl_error_t reload_db(struct cl_engine **engine, unsigned int dboptions, c
 
     if (*engine) {
         /* copy current settings */
-        rldata->settings = cl_engine_settings_copy(*engine);
+        rldata->settings = invoke_cl_engine_settings_copy(*engine);
         if (!rldata->settings) {
             logg("!Can't make a copy of the current engine settings\n");
             goto done;
@@ -349,7 +351,8 @@ static cl_error_t reload_db(struct cl_engine **engine, unsigned int dboptions, c
              * It will only actually be free'd once the last scan finishes.
              */
             thrmgr_setactiveengine(NULL);
-            cl_engine_free(*engine);
+            invoke_cl_engine_free(*engine);
+            destroy_sandbox();
             *engine = NULL;
 
             /* Wait for all scans to finish */
@@ -412,7 +415,7 @@ done:
          */
         if (NULL != rldata) {
             if (NULL != rldata->settings) {
-                cl_engine_settings_free(rldata->settings);
+                invoke_cl_engine_settings_free(rldata->settings);
             }
             if (NULL != rldata->dbdir) {
                 free(rldata->dbdir);
@@ -923,39 +926,42 @@ int recvloop(int *socketds, unsigned nsockets, struct cl_engine *engine, unsigne
 
     /* set up limits */
     if ((opt = optget(opts, "MaxScanTime"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_SCANTIME, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_SCANTIME, opt->numarg))) {
             logg("!cl_engine_set_num(CL_ENGINE_MAX_SCANTIME) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_SCANTIME, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_SCANTIME, NULL);
     if (val)
         logg("Limits: Global time limit set to %llu milliseconds.\n", val);
     else
         logg("^Limits: Global time limit protection disabled.\n");
 
     if ((opt = optget(opts, "MaxScanSize"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_SCANSIZE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_SCANSIZE, opt->numarg))) {
             logg("!cl_engine_set_num(CL_ENGINE_MAX_SCANSIZE) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_SCANSIZE, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_SCANSIZE, NULL);
     if (val)
         logg("Limits: Global size limit set to %llu bytes.\n", val);
     else
         logg("^Limits: Global size limit protection disabled.\n");
 
     if ((opt = optget(opts, "MaxFileSize"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_FILESIZE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_FILESIZE, opt->numarg))) {
             logg("!cl_engine_set_num(CL_ENGINE_MAX_FILESIZE) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_FILESIZE, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_FILESIZE, NULL);
     if (val)
         logg("Limits: File size limit set to %llu bytes.\n", val);
     else
@@ -963,9 +969,9 @@ int recvloop(int *socketds, unsigned nsockets, struct cl_engine *engine, unsigne
 
 #ifndef _WIN32
     if (getrlimit(RLIMIT_FSIZE, &rlim) == 0) {
-        if (rlim.rlim_cur < (rlim_t)cl_engine_get_num(engine, CL_ENGINE_MAX_FILESIZE, NULL))
+        if (rlim.rlim_cur < (rlim_t)invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_FILESIZE, NULL))
             logg("^System limit for file size is lower than engine->maxfilesize\n");
-        if (rlim.rlim_cur < (rlim_t)cl_engine_get_num(engine, CL_ENGINE_MAX_SCANSIZE, NULL))
+        if (rlim.rlim_cur < (rlim_t)invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_SCANSIZE, NULL))
             logg("^System limit for file size is lower than engine->maxscansize\n");
     } else {
         logg("^Cannot obtain resource limits for file size\n");
@@ -973,26 +979,28 @@ int recvloop(int *socketds, unsigned nsockets, struct cl_engine *engine, unsigne
 #endif
 
     if ((opt = optget(opts, "MaxRecursion"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_RECURSION, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_RECURSION, opt->numarg))) {
             logg("!cl_engine_set_num(CL_ENGINE_MAX_RECURSION) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_RECURSION, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_RECURSION, NULL);
     if (val)
         logg("Limits: Recursion level limit set to %u.\n", (unsigned int)val);
     else
         logg("^Limits: Recursion level limit protection disabled.\n");
 
     if ((opt = optget(opts, "MaxFiles"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_FILES, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_FILES, opt->numarg))) {
             logg("!cl_engine_set_num(CL_ENGINE_MAX_FILES) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_FILES, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_FILES, NULL);
     if (val)
         logg("Limits: Files limit set to %u.\n", (unsigned int)val);
     else
@@ -1007,100 +1015,109 @@ int recvloop(int *socketds, unsigned nsockets, struct cl_engine *engine, unsigne
     /* Engine max sizes */
 
     if ((opt = optget(opts, "MaxEmbeddedPE"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_EMBEDDEDPE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_EMBEDDEDPE, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_EMBEDDEDPE) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_EMBEDDEDPE, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_EMBEDDEDPE, NULL);
     logg("Limits: MaxEmbeddedPE limit set to %llu bytes.\n", val);
 
     if ((opt = optget(opts, "MaxHTMLNormalize"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_HTMLNORMALIZE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_HTMLNORMALIZE, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_HTMLNORMALIZE) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_HTMLNORMALIZE, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_HTMLNORMALIZE, NULL);
     logg("Limits: MaxHTMLNormalize limit set to %llu bytes.\n", val);
 
     if ((opt = optget(opts, "MaxHTMLNoTags"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_HTMLNOTAGS, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_HTMLNOTAGS, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_HTMLNOTAGS) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_HTMLNOTAGS, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_HTMLNOTAGS, NULL);
     logg("Limits: MaxHTMLNoTags limit set to %llu bytes.\n", val);
 
     if ((opt = optget(opts, "MaxScriptNormalize"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_SCRIPTNORMALIZE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_SCRIPTNORMALIZE, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_SCRIPTNORMALIZE) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_SCRIPTNORMALIZE, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_SCRIPTNORMALIZE, NULL);
     logg("Limits: MaxScriptNormalize limit set to %llu bytes.\n", val);
 
     if ((opt = optget(opts, "MaxZipTypeRcg"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_ZIPTYPERCG, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_ZIPTYPERCG, opt->numarg))) {
             logg("!cli_engine_set_num(CL_ENGINE_MAX_ZIPTYPERCG) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_ZIPTYPERCG, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_ZIPTYPERCG, NULL);
     logg("Limits: MaxZipTypeRcg limit set to %llu bytes.\n", val);
 
     if ((opt = optget(opts, "MaxPartitions"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_PARTITIONS, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_PARTITIONS, opt->numarg))) {
             logg("!cli_engine_set_num(MaxPartitions) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_PARTITIONS, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_PARTITIONS, NULL);
     logg("Limits: MaxPartitions limit set to %llu.\n", val);
 
     if ((opt = optget(opts, "MaxIconsPE"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_ICONSPE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_ICONSPE, opt->numarg))) {
             logg("!cli_engine_set_num(MaxIconsPE) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_ICONSPE, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_ICONSPE, NULL);
     logg("Limits: MaxIconsPE limit set to %llu.\n", val);
 
     if ((opt = optget(opts, "MaxRecHWP3"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_MAX_RECHWP3, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MAX_RECHWP3, opt->numarg))) {
             logg("!cli_engine_set_num(MaxRecHWP3) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_MAX_RECHWP3, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_MAX_RECHWP3, NULL);
     logg("Limits: MaxRecHWP3 limit set to %llu.\n", val);
 
     /* options are handled in main (clamd.c) */
-    val = cl_engine_get_num(engine, CL_ENGINE_PCRE_MATCH_LIMIT, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_PCRE_MATCH_LIMIT, NULL);
     logg("Limits: PCREMatchLimit limit set to %llu.\n", val);
 
-    val = cl_engine_get_num(engine, CL_ENGINE_PCRE_RECMATCH_LIMIT, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_PCRE_RECMATCH_LIMIT, NULL);
     logg("Limits: PCRERecMatchLimit limit set to %llu.\n", val);
 
     if ((opt = optget(opts, "PCREMaxFileSize"))->active) {
-        if ((ret = cl_engine_set_num(engine, CL_ENGINE_PCRE_MAX_FILESIZE, opt->numarg))) {
+        if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_PCRE_MAX_FILESIZE, opt->numarg))) {
             logg("!cli_engine_set_num(PCREMaxFileSize) failed: %s\n", cl_strerror(ret));
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
     }
-    val = cl_engine_get_num(engine, CL_ENGINE_PCRE_MAX_FILESIZE, NULL);
+    val = invoke_cl_engine_get_num(engine, CL_ENGINE_PCRE_MAX_FILESIZE, NULL);
     logg("Limits: PCREMaxFileSize limit set to %llu.\n", val);
 
     if (optget(opts, "ScanArchive")->enabled) {
@@ -1312,26 +1329,28 @@ int recvloop(int *socketds, unsigned nsockets, struct cl_engine *engine, unsigne
         options.heuristic |= CL_SCAN_HEURISTIC_STRUCTURED;
 
         if ((opt = optget(opts, "StructuredMinCreditCardCount"))->enabled) {
-            if ((ret = cl_engine_set_num(engine, CL_ENGINE_MIN_CC_COUNT, opt->numarg))) {
+            if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MIN_CC_COUNT, opt->numarg))) {
                 logg("!cl_engine_set_num(CL_ENGINE_MIN_CC_COUNT) failed: %s\n", cl_strerror(ret));
-                cl_engine_free(engine);
+                invoke_cl_engine_free(engine);
+                destroy_sandbox();
                 return 1;
             }
         }
-        val = cl_engine_get_num(engine, CL_ENGINE_MIN_CC_COUNT, NULL);
+        val = invoke_cl_engine_get_num(engine, CL_ENGINE_MIN_CC_COUNT, NULL);
         logg("Structured: Minimum Credit Card Number Count set to %u\n", (unsigned int)val);
 
         if (optget(opts, "StructuredCCOnly")->enabled)
             options.heuristic |= CL_SCAN_HEURISTIC_STRUCTURED_CC;
 
         if ((opt = optget(opts, "StructuredMinSSNCount"))->enabled) {
-            if ((ret = cl_engine_set_num(engine, CL_ENGINE_MIN_SSN_COUNT, opt->numarg))) {
+            if ((ret = invoke_cl_engine_set_num(engine, CL_ENGINE_MIN_SSN_COUNT, opt->numarg))) {
                 logg("!cl_engine_set_num(CL_ENGINE_MIN_SSN_COUNT) failed: %s\n", cl_strerror(ret));
-                cl_engine_free(engine);
+                invoke_cl_engine_free(engine);
+                destroy_sandbox();
                 return 1;
             }
         }
-        val = cl_engine_get_num(engine, CL_ENGINE_MIN_SSN_COUNT, NULL);
+        val = invoke_cl_engine_get_num(engine, CL_ENGINE_MIN_SSN_COUNT, NULL);
         logg("Structured: Minimum Social Security Number Count set to %u\n", (unsigned int)val);
 
         if (optget(opts, "StructuredSSNFormatNormal")->enabled)
@@ -1487,7 +1506,8 @@ int recvloop(int *socketds, unsigned nsockets, struct cl_engine *engine, unsigne
     for (i = 0; i < nsockets; i++)
         if (fds_add(&acceptdata.fds, socketds[i], 1, 0) == -1) {
             logg("!fds_add failed\n");
-            cl_engine_free(engine);
+            invoke_cl_engine_free(engine);
+            destroy_sandbox();
             return 1;
         }
 #ifdef _WIN32
@@ -1737,7 +1757,8 @@ int recvloop(int *socketds, unsigned nsockets, struct cl_engine *engine, unsigne
                     thrmgr_setactiveengine(g_newengine);
                     if (optget(opts, "ConcurrentDatabaseReload")->enabled) {
                         /* If concurrent database reload, we now need to free the old engine. */
-                        cl_engine_free(engine);
+                        invoke_cl_engine_free(engine);
+                        //destroy_sandbox();
                     }
                     engine      = g_newengine;
                     g_newengine = NULL;
@@ -1775,8 +1796,10 @@ int recvloop(int *socketds, unsigned nsockets, struct cl_engine *engine, unsigne
     thrmgr_destroy(thr_pool);
     if (engine) {
         thrmgr_setactiveengine(NULL);
-        cl_engine_free(engine);
+        invoke_cl_engine_free(engine);
     }
+
+    destroy_sandbox();
 
     pthread_join(accept_th, NULL);
     fds_free(fds);

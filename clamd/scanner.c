@@ -50,6 +50,7 @@
 #include "clamav.h"
 #include "others.h"
 #include "scanners.h"
+#include "rlbox_scanner.h"
 
 // common
 #include "idmef_logging.h"
@@ -62,6 +63,7 @@
 #include "shared.h"
 #include "thrmgr.h"
 #include "server.h"
+
 
 #ifdef C_LINUX
 dev_t procdev; /* /proc device */
@@ -112,7 +114,6 @@ void clamd_virus_found_cb(int fd, const char *virname, void *ctx)
     struct cb_context *c   = ctx;
     struct scan_cb_data *d = c->scandata;
     const char *fname;
-
     UNUSEDPARAM(fd);
 
     if (d == NULL)
@@ -236,7 +237,7 @@ cl_error_t scan_callback(STATBUF *sb, char *filename, const char *msg, enum cli_
             client_conn->options  = scandata->options;
             client_conn->opts     = scandata->opts;
             client_conn->group    = scandata->group;
-            if (cl_engine_addref(scandata->engine)) {
+            if (invoke_cl_engine_addref(scandata->engine)) {
                 logg("!cl_engine_addref() failed\n");
                 free(filename);
                 free(client_conn);
@@ -248,7 +249,8 @@ cl_error_t scan_callback(STATBUF *sb, char *filename, const char *msg, enum cli_
                 pthread_mutex_unlock(&reload_mutex);
                 if (!thrmgr_group_dispatch(scandata->thr_pool, scandata->group, client_conn, 1)) {
                     logg("!thread dispatch failed\n");
-                    cl_engine_free(scandata->engine);
+                    invoke_cl_engine_free(scandata->engine);
+                    //destroy_sandbox();
                     free(filename);
                     free(client_conn);
                     return CL_EMEM;
@@ -267,7 +269,7 @@ cl_error_t scan_callback(STATBUF *sb, char *filename, const char *msg, enum cli_
     context.filename = filename;
     context.virsize  = 0;
     context.scandata = scandata;
-    ret              = cl_scanfile_callback(filename, &virname, &scandata->scanned, scandata->engine, scandata->options, &context);
+    ret              = invoke_cl_scanfile_callback(filename, &virname, &scandata->scanned, scandata->engine, scandata->options, &context);
     thrmgr_setactivetask(NULL, NULL);
 
     if (thrmgr_group_need_terminate(scandata->conn->group)) {
@@ -326,6 +328,7 @@ cl_error_t scan_callback(STATBUF *sb, char *filename, const char *msg, enum cli_
         logg("~%s: OK\n", filename);
     }
 
+    free(virname);
     free(filename);
 
     if (ret == CL_EMEM) /* stop scanning */
@@ -427,7 +430,8 @@ cl_error_t scanfd(
     context.filename = fdstr;
     context.virsize  = 0;
     context.scandata = NULL;
-    ret              = cl_scandesc_callback(fd, log_filename, &virname, scanned, engine, options, &context);
+    ret                = invoke_cl_scandesc_callback(fd, log_filename, &virname, scanned, engine, options, &context);
+    //ret              = cl_scandesc_callback(fd, log_filename, &virname, scanned, engine, options, &context);
     thrmgr_setactivetask(NULL, NULL);
 
     if (thrmgr_group_need_terminate(conn->group)) {
@@ -459,7 +463,7 @@ done:
     if (NULL != filepath) {
         free(filepath);
     }
-
+    free(virname);
     return ret;
 }
 
@@ -501,7 +505,7 @@ int scanstream(
 
         if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
             continue;
-
+        fprintf(stderr, "scanner binding to: %s\n", ((struct sockaddr *)&server)->sa_data);
         if (bind(sockfd, (struct sockaddr *)&server, (socklen_t)sizeof(struct sockaddr_in)) == -1)
             closesocket(sockfd);
         else {
@@ -607,7 +611,8 @@ int scanstream(
         context.filename = peer_addr;
         context.virsize  = 0;
         context.scandata = NULL;
-        ret              = cl_scandesc_callback(tmpd, tmpname, &virname, scanned, engine, options, &context);
+        ret                = invoke_cl_scandesc_callback(tmpd, tmpname, &virname, scanned, engine, options, &context);
+        //ret              = cl_scandesc_callback(tmpd, tmpname, &virname, scanned, engine, options, &context);
         thrmgr_setactivetask(NULL, NULL);
     } else {
         ret = -1;

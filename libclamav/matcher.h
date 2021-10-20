@@ -188,21 +188,21 @@ struct cli_mtarget {
 #define CLI_MTARGETS 15
 static const struct cli_mtarget cli_mtargets[CLI_MTARGETS] = {
     /* All types for target, name, idx, ac_only, pre-filtering?, # of types */
-    {{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "GENERIC", 0, 0, 1, 1},
-    {{CL_TYPE_MSEXE, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "PE", 1, 0, 1, 1},
-    {{CL_TYPE_MSOLE2, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "OLE2", 2, 1, 0, 1},
-    {{CL_TYPE_HTML, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "HTML", 3, 1, 0, 1},
-    {{CL_TYPE_MAIL, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "MAIL", 4, 1, 1, 1},
-    {{CL_TYPE_GRAPHICS, CL_TYPE_GIF, CL_TYPE_PNG, CL_TYPE_JPEG, CL_TYPE_TIFF, 0, 0, 0, 0, 0}, "GRAPHICS", 5, 1, 0, 5},
-    {{CL_TYPE_ELF, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "ELF", 6, 1, 0, 1},
-    {{CL_TYPE_TEXT_ASCII, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "ASCII", 7, 1, 1, 1},
-    {{CL_TYPE_ERROR, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "NOT USED", 8, 1, 0, 1},
-    {{CL_TYPE_MACHO, CL_TYPE_MACHO_UNIBIN, 0, 0, 0, 0, 0, 0, 0, 0}, "MACH-O", 9, 1, 0, 2},
-    {{CL_TYPE_PDF, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "PDF", 10, 1, 0, 1},
-    {{CL_TYPE_SWF, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "FLASH", 11, 1, 0, 1},
-    {{CL_TYPE_JAVA, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "JAVA", 12, 1, 0, 1},
-    {{CL_TYPE_INTERNAL, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "INTERNAL", 13, 1, 0, 1},
-    {{CL_TYPE_OTHER, 0, 0, 0, 0, 0, 0, 0, 0, 0}, "OTHER", 14, 1, 0, 1}};
+    {{(cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "GENERIC", 0, 0, 1, 1},
+    {{CL_TYPE_MSEXE, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "PE", 1, 0, 1, 1},
+    {{CL_TYPE_MSOLE2, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "OLE2", 2, 1, 0, 1},
+    {{CL_TYPE_HTML, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "HTML", 3, 1, 0, 1},
+    {{CL_TYPE_MAIL, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "MAIL", 4, 1, 1, 1},
+    {{CL_TYPE_GRAPHICS, CL_TYPE_GIF, CL_TYPE_PNG, CL_TYPE_JPEG, CL_TYPE_TIFF, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "GRAPHICS", 5, 1, 0, 5},
+    {{CL_TYPE_ELF, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "ELF", 6, 1, 0, 1},
+    {{CL_TYPE_TEXT_ASCII, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "ASCII", 7, 1, 1, 1},
+    {{CL_TYPE_ERROR, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "NOT USED", 8, 1, 0, 1},
+    {{CL_TYPE_MACHO, CL_TYPE_MACHO_UNIBIN, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "MACH-O", 9, 1, 0, 2},
+    {{CL_TYPE_PDF, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "PDF", 10, 1, 0, 1},
+    {{CL_TYPE_SWF, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "FLASH", 11, 1, 0, 1},
+    {{CL_TYPE_JAVA, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "JAVA", 12, 1, 0, 1},
+    {{CL_TYPE_INTERNAL, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "INTERNAL", 13, 1, 0, 1},
+    {{CL_TYPE_OTHER, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0, (cli_file_t)0}, "OTHER", 14, 1, 0, 1}};
 
 // clang-format off
 

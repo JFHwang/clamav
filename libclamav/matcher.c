@@ -1045,7 +1045,6 @@ cl_error_t cli_scan_fmap(cli_ctx *ctx, cli_file_t ftype, uint8_t ftonly, struct 
 
         ret = CL_CLEAN;
     }
-
     if (!ftonly) {
         if ((ret = cli_ac_initdata(&gdata, groot->ac_partsigs, groot->ac_lsigs, groot->ac_reloff_num, CLI_DEFAULT_AC_TRACKLEN)) ||
             (ret = cli_ac_caloff(groot, &gdata, &info))) {
@@ -1116,7 +1115,6 @@ cl_error_t cli_scan_fmap(cli_ctx *ctx, cli_file_t ftype, uint8_t ftonly, struct 
 
     hdb = ctx->engine->hm_hdb;
     fp  = ctx->engine->hm_fp;
-
     if (!ftonly && hdb) {
         if (!refhash) {
             if (cli_hm_have_size(hdb, CLI_HASH_MD5, map->len) ||
@@ -1150,7 +1148,6 @@ cl_error_t cli_scan_fmap(cli_ctx *ctx, cli_file_t ftype, uint8_t ftonly, struct 
             compute_hash[CLI_HASH_SHA256] = 0;
         }
     }
-
     while (offset < map->len) {
         bytes = MIN(map->len - offset, SCANBUFF);
         if (!(buff = fmap_need_off_once(map, offset, bytes)))
@@ -1184,7 +1181,6 @@ cl_error_t cli_scan_fmap(cli_ctx *ctx, cli_file_t ftype, uint8_t ftonly, struct 
                 return ret;
             }
         }
-
         if (!ftonly) {
             virname = NULL;
             ret     = matcher_run(groot, buff, bytes, &virname, &gdata, offset, &info, ftype, ftoffset, acmode, PCRE_SCAN_FMAP, acres, map, NULL, &gpoff, ctx);
@@ -1286,7 +1282,6 @@ cl_error_t cli_scan_fmap(cli_ctx *ctx, cli_file_t ftype, uint8_t ftonly, struct 
                     }
                 }
             }
-
             /* If matched size-based hash ... */
             if (found % 2) {
                 viruses_found = 1;
@@ -1304,7 +1299,6 @@ cl_error_t cli_scan_fmap(cli_ctx *ctx, cli_file_t ftype, uint8_t ftonly, struct 
             }
         }
     }
-
     cl_hash_destroy(md5ctx);
     cl_hash_destroy(sha1ctx);
     cl_hash_destroy(sha256ctx);
@@ -1329,7 +1323,6 @@ cl_error_t cli_scan_fmap(cli_ctx *ctx, cli_file_t ftype, uint8_t ftonly, struct 
     }
 
     cli_targetinfo_destroy(&info);
-
     if (SCAN_ALLMATCHES && viruses_found) {
         return CL_VIRUS;
     }

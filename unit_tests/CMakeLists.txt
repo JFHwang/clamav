@@ -64,6 +64,7 @@ if(ENABLE_APP)
             clamav_obj
             regex
             lzma_sdk
+            rlbox
             yara
             tomsfastmath
             bytecode_runtime
@@ -102,6 +103,7 @@ if(ENABLE_APP)
             clamav_obj
             regex
             lzma_sdk
+            rlbox
             yara
             tomsfastmath
             bytecode_runtime
@@ -152,6 +154,7 @@ target_link_libraries(check_clamav
         clamav_obj
         regex
         lzma_sdk
+        rlbox
         yara
         tomsfastmath
         bytecode_runtime

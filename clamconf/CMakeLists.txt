@@ -20,7 +20,10 @@ if(WIN32)
 endif()
 target_include_directories( clamconf
     PRIVATE ${CMAKE_BINARY_DIR} # For clamav-config.h
+    /home/john/programs/clamav/common
+    /home/john/programs/clamav/clamd
 )
+
 set_target_properties( clamconf PROPERTIES COMPILE_FLAGS "${WARNCFLAGS}" )
 target_link_libraries( clamconf
     PRIVATE

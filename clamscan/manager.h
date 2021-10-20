@@ -25,5 +25,23 @@
 #include "optparser.h"
 
 int scanmanager(const struct optstruct *opts);
+cl_error_t pre(int fd, const char *type, void *context);
+cl_error_t meta(const char *container_type, unsigned long fsize_container, const char *filename,
+                       unsigned long fsize_real, int is_encrypted, unsigned int filepos_container, void *context);
+cl_error_t post(int fd, int result, const char *virname, void *context);
+void clamscan_virus_found_cb(int fd, const char *virname, void *context);
+
+struct metachain {
+    char **chains;
+    size_t lastadd;
+    size_t lastvir;
+    size_t level;
+    size_t nchains;
+};
+
+struct clamscan_cb_data {
+    struct metachain *chain;
+    const char *filename;
+};
 
 #endif

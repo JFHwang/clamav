@@ -250,6 +250,27 @@ target_include_directories( tomsfastmath
 set_target_properties( tomsfastmath PROPERTIES
     COMPILE_FLAGS "${WARNCFLAGS}" )
 
+# RLBox     
+add_library( rlbox OBJECT ) 
+target_sources( rlbox
+    PRIVATE
+        c++/rlbox_pdf.cpp
+        c++/rlbox_pdf.h 
+        c++/rlbox_scanner.cpp
+        c++/rlbox_scanner.h )
+set_target_properties( rlbox PROPERTIES OUTPUT_NAME rlbox
+    COMPILE_FLAGS "${WARNCXXFLAGS} ${CXX1XCXXFLAGS}" )
+target_include_directories( rlbox 
+    PRIVATE 
+        /home/john/programs/rlbox/rlbox_sandboxing_api/code/include 
+        /home/john/programs/clamav/libclamav
+        /home/john/programs/clamav/clamd
+        /home/john/programs/clamav/clamscan
+        /home/john/programs/clamav/common
+        ${CMAKE_BINARY_DIR} ${JSONC_INCLUDE_DIRS}   
+    PUBLIC 
+       ${CMAKE_CURRENT_SOURCE_DIR} )
+
 # Bytecode Runtime
 add_library( bytecode_runtime OBJECT )
 if(LLVM_FOUND)
@@ -494,12 +515,17 @@ target_sources( clamav_obj
     PUBLIC
         clamav.h )
 
+
 if(WIN32)
     target_sources( clamav_obj PRIVATE libclamav_main.c )
 endif()
 
 target_include_directories( clamav_obj
-    PRIVATE   ${CMAKE_BINARY_DIR} ${JSONC_INCLUDE_DIRS}
+    PRIVATE   ${CMAKE_BINARY_DIR} ${JSONC_INCLUDE_DIRS} 
+              /home/john/programs/clamav/libclamav/c++
+              /home/john/programs/clamav/clamd
+              /home/john/programs/clamav/clamscan
+              /home/john/programs/clamav/common
     PUBLIC    ${CMAKE_CURRENT_SOURCE_DIR}
     INTERFACE ${CMAKE_BINARY_DIR} )
 target_link_libraries( clamav_obj
@@ -508,6 +534,7 @@ target_link_libraries( clamav_obj
         lzma_sdk
         yara
         tomsfastmath
+        rlbox
         bytecode_runtime
         ${LIBMSPACK}
         ClamAV::libunrar_iface_iface
@@ -551,6 +578,7 @@ if(ENABLE_SHARED_LIB)
             lzma_sdk
             yara
             tomsfastmath
+            rlbox
             bytecode_runtime
             ${LIBMSPACK}
             ClamAV::libunrar_iface_iface
@@ -626,6 +654,7 @@ if(ENABLE_STATIC_LIB)
             lzma_sdk
             yara
             tomsfastmath
+            rlbox
             bytecode_runtime
             ${LIBMSPACK}
             ClamAV::libunrar_iface_static

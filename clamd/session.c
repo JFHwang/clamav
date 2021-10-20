@@ -416,7 +416,7 @@ static int dispatch_command(client_conn_t *conn, enum commands cmd, const char *
     }
     memcpy(dup_conn, conn, sizeof(*conn));
     dup_conn->cmdtype = cmd;
-    if (cl_engine_addref(dup_conn->engine)) {
+    if (invoke_cl_engine_addref(dup_conn->engine)) {
         logg("!cl_engine_addref() failed\n");
         free(dup_conn);
         return -1;
@@ -464,7 +464,8 @@ static int dispatch_command(client_conn_t *conn, enum commands cmd, const char *
         ret = -2;
     }
     if (ret) {
-        cl_engine_free(dup_conn->engine);
+        invoke_cl_engine_free(dup_conn->engine);
+        //destroy_sandbox();
         free(dup_conn);
     }
     return ret;
@@ -474,12 +475,12 @@ static int print_ver(int desc, char term, const struct cl_engine *engine)
 {
     uint32_t ver;
 
-    ver = cl_engine_get_num(engine, CL_ENGINE_DB_VERSION, NULL);
+    ver = invoke_cl_engine_get_num(engine, CL_ENGINE_DB_VERSION, NULL);
     if (ver) {
         char timestr[32];
         const char *tstr;
         time_t t;
-        t    = cl_engine_get_num(engine, CL_ENGINE_DB_TIME, NULL);
+        t    = invoke_cl_engine_get_num(engine, CL_ENGINE_DB_TIME, NULL);
         tstr = cli_ctime(&t, timestr, sizeof(timestr));
         /* cut trailing \n */
         timestr[strlen(tstr) - 1] = '\0';
